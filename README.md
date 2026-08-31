@@ -129,7 +129,7 @@ Every route declares one of the four purpose buckets and may restrict matches to
 ## Safety and privacy
 
 - One primary skill; only required supporting skills.
-- Explicit `$skill-name` requests win only when the skill is available.
+- Explicit `$skill-name` requests are untrusted input: they route only when the manifest already declares that skill for the classified purpose bucket, and only when it is available. Everything else is reported in `unavailableSkills` and never becomes `primary`.
 - Invalid manifests, missing evidence, and missing dependencies fail closed.
 - Material or authorization-bearing requests reach a Human Gate.
 - Routing selects context; it does not execute skills or grant permission.

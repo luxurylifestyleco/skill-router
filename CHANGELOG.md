@@ -2,6 +2,12 @@
 
 All notable changes are documented here. Skill Router follows semantic versioning.
 
+## Unreleased
+
+### Fixed
+
+- **Security:** an explicit `$skill-name` in a request is no longer trusted on sight. `scripts/route.mjs` prepended any `$name` from the message straight into the routing plan, so injected text could make an undeclared skill (`$root-admin`) the `primary` skill, and a declared skill from any other purpose bucket could be pulled into an unrelated route. Explicit names are now resolved against the skills the manifest declares for the classified purpose bucket; unresolved names are reported in `unavailableSkills` and never routed.
+
 ## 1.0.1 — 2026-08-31
 
 ### Corrected

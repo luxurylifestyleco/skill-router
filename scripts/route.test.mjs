@@ -70,6 +70,35 @@ test("reports explicitly requested skills that are unavailable", () => {
   assert.deepEqual(plan.skills, ["documents"]);
 });
 
+test("ignores an explicit skill the manifest never declares", () => {
+  const plan = run("--request", "Create a word document report using $root-admin");
+  assert.deepEqual(plan.explicitSkills, ["root-admin"]);
+  assert.deepEqual(plan.skills, ["documents"]);
+  assert.equal(plan.primary, "documents");
+  assert.deepEqual(plan.unavailableSkills, ["root-admin"]);
+});
+
+test("ignores an explicit skill declared in another purpose bucket", () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "skill-router-test-"));
+  const crossBucket = path.join(temporary, "cross-bucket.json");
+  try {
+    fs.writeFileSync(crossBucket, JSON.stringify({
+      version: 1,
+      routes: [
+        { id: "docs", bucket: "utility", agent: "document-agent", skills: ["documents"], match: { verbs: ["create"], any: ["word document"] } },
+        { id: "ops", bucket: "orchestration", agent: "ops-agent", skills: ["ship-it"], match: { verbs: ["operate"], any: ["dispatch"] } }
+      ]
+    }));
+    const plan = JSON.parse(execFileSync(process.execPath, [script, "--manifest", crossBucket, "--request", "Create a word document using $ship-it"], { encoding: "utf8" }));
+    assert.equal(plan.action_bucket, "utility");
+    assert.equal(plan.primary, "documents");
+    assert.deepEqual(plan.skills, ["documents"]);
+    assert.deepEqual(plan.unavailableSkills, ["ship-it"]);
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test("falls back when no route matches", () => {
   const plan = run("--request", "Explain this function");
   assert.equal(plan.agent, "general-agent");
