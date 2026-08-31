@@ -10,7 +10,7 @@ Target users are developers and power users whose agent-skill collections have b
 
 Before asking for stars, publish:
 
-- the seven passing behavioral tests;
+- the passing behavioral suite covering all eight action buckets and four purpose mappings;
 - a 30-second terminal recording of local discovery;
 - a public synthetic catalog with 25–100 skills;
 - routing accuracy results on labeled requests;
@@ -44,7 +44,7 @@ Do not use the creator's private skill stack as content or a benchmark fixture.
 ### 4. Pre-LLM routing field notes
 
 - **Channel:** Repository discussions, a lightweight blog, and search-indexed technical articles.
-- **Core message:** Explain message anatomy, skill privacy, routing confidence, failure modes, and eval design with real fixtures.
+- **Core message:** Explain action classification, purpose-bucket selection, skill privacy, routing confidence, failure modes, and eval design with real fixtures.
 - **Why it works:** A focused body of useful material builds domain authority around a specific category.
 - **Cost efficiency:** Each implementation lesson becomes documentation, an article, and a shareable diagram.
 

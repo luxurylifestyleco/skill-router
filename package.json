@@ -1,6 +1,6 @@
 {
   "name": "skill-router-by-luxurylifestyleco",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Private local skill discovery and auditable pre-LLM routing without memorizing skill names.",
   "type": "module",
   "license": "MIT",

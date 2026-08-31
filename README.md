@@ -1,216 +1,158 @@
 # Skill Router by [@luxurylifestyleco](https://github.com/luxurylifestyleco) / [VEDAXI](https://vedaxi.com)
 
-**The open message-anatomy and routing layer between a raw user request and agent execution.**
+**Install skills. Forget their names. Ask naturally.**
 
-Created by **[@luxurylifestyleco](https://github.com/luxurylifestyleco)** at **[VEDAXI](https://vedaxi.com)**. Install skills, forget their names, and ask naturally.
-
-Skill Router turns incoming messages into an auditable four-bucket envelope, then selects an agent and skills before the main LLM runs.
+Skill Router is a deterministic, platform-agnostic routing layer between a user request and agent execution. It classifies the request before the main LLM, selects one primary skill plus only required supporting skills, and emits an auditable verdict without exposing the full local skill catalog.
 
 ```text
-message -> verbs + task/context/constraints/output -> batch -> router -> agent + selected skills -> main LLM
+user request -> 8 action buckets -> 4 purpose buckets -> risk/dependencies
+             -> primary + supporting skills -> agent -> LLM -> verification/ledger
 ```
 
-The primary adapter market is Claude Code, Codex, Hermes Agent, OpenRouter, Google Antigravity, Grok/xAI, OpenClaw, Qwen, DeepSeek, GLM, and Kimi. Those names define implementation targets, not keyword stuffing. The routing contract stays host-independent while each integration uses the host's real lifecycle surface.
+Created by **[@luxurylifestyleco](https://github.com/luxurylifestyleco)** at **[VEDAXI](https://vedaxi.com)**.
 
-## What ships in v1.0
+## The router model
+
+The eight action buckets describe what the request is doing. They map mechanically to the four purpose buckets used by each skill's `bucket:` frontmatter.
+
+| Action bucket | Purpose bucket | Typical verbs |
+| --- | --- | --- |
+| `sense` | `data-enrichment` | capture, ingest, scrape, watch, monitor, crawl, record, subscribe, poll |
+| `understand` | `data-enrichment` | research, retrieve, analyze, summarize, interpret, investigate, enrich |
+| `decide` | `orchestration` | plan, prioritize, synthesize, weigh, recommend, strategize, choose, roadmap |
+| `create` | `utility` | write, draft, design, build, generate, compose, render, craft, create, produce |
+| `operate` | `orchestration` | execute, run, deploy, dispatch, trigger, schedule, automate, start, stop |
+| `verify` | `verification` | audit, verify, validate, review, test, scan, inspect, fact-check, QA, harden, check |
+| `learn` | `orchestration` | distill, memorize, reflect, improve, repair, archive, learn, reconcile, prune |
+| `govern` | `verification` | authorize, approve, gate, enforce, comply, policy, permission, human gate |
+
+Risk is resolved after classification. Routine, dependency-ready routes can proceed. Governance and material markers produce `risk=human`. Missing evidence or unavailable dependencies produce `status=blocked`; the router does not guess.
+
+## What ships in v1.0.1
 
 | Component | Working behavior |
 | --- | --- |
-| `auto-route.mjs` | Finds locally installed skills and returns only the strongest matches |
-| `route.mjs` | Extracts verbs and four buckets, then applies trusted agent/skill policies |
+| `taxonomy.mjs` | Deterministically classifies the eight action buckets and maps the four purpose buckets |
+| `auto-route.mjs` | Finds locally installed skills under caller-supplied roots and emits selected matches only |
+| `route.mjs` | Applies trusted purpose-bucket, agent, and skill policies |
 | JSONL batch mode | Streams requests and routing plans without buffering a full batch |
-| Privacy boundary | Does not emit the complete skill catalog, call a service, or collect telemetry |
-| Verification | Nine behavioral tests plus JavaScript syntax checks |
+| Privacy boundary | Does not bundle or emit a private catalog, call a service, or collect telemetry |
 | Runtime | Node.js 18+, zero package dependencies, Windows/macOS/Linux |
 
-This repository contains executable routers, tests, examples, a versioned contract, security guidance, and contribution templates. `SKILL.md` is the agent-facing entry point—not the entire implementation.
-
-## One-time installation model
-
-A skill cannot route the same request that caused a host to load it. True pre-LLM behavior requires one approved, host-native adapter installation, separate from normal skill loading:
-
-```text
-one-time install -> detect host -> show exact hook patch -> user verifies/approves -> install + test
-future request -> pre-LLM hook -> deterministic router -> selected skills -> main LLM
-```
-
-The installer must be idempotent and approval-first, similar to a one-time operating-system permission prompt. Routine future routing is automatic. Separate Human Gates still protect publishing, spending, credentials, external commitments, and other material actions. Unsupported hosts fall back honestly to model-side routing; they are never labeled pre-LLM.
-
-## The four-bucket contract
-
-Every message is preserved and organized into:
-
-| Bucket | Meaning |
-| --- | --- |
-| `task` | What should happen |
-| `context` | Background, inputs, and affected systems |
-| `constraints` | Limits, preferences, permissions, and prohibitions |
-| `output` | The expected artifact or response shape |
-
-This gives downstream code a predictable intake shape without pretending that routing is task execution.
-
-Canonical action verbs such as `create`, `analyze`, `fix`, `route`, and `publish` are extracted from the task. They improve confidence and make plans easier to inspect, but a generic verb never selects a domain route by itself.
-
-## Why it exists
-
-Agent frameworks often pass raw prose directly into a growing stream of prompts, tools, and code. That makes routing hard to inspect and failures hard to explain.
-
-Skill Router adds a narrow preflight layer:
-
-- preserves the original message;
-- accepts explicit structured buckets or labeled prose;
-- provides conservative zero-model heuristics as a fallback;
-- routes one request or streaming JSONL batches;
-- allowlists skills available in the current host;
-- emits scores, matched route IDs, and unavailable skills;
-- never calls an LLM, executes a skill, or grants permission.
-
 ## 60-second demo
-
-Requires Node.js 18 or newer. There are no package dependencies.
 
 ```bash
 node scripts/route.mjs \
   --manifest examples/routes.json \
-  --request "Task: Create a sales workbook
-Context: Q3 pipeline
-Constraints: No macros
-Output: .xlsx" \
+  --request "Create a sales workbook for the Q3 forecast as .xlsx" \
   --pretty
 ```
 
-The result is a routing plan that any host can consume:
-
 ```json
 {
-  "buckets": {
-    "task": "Create a sales workbook",
-    "context": "Q3 pipeline",
-    "constraints": "No macros",
-    "output": ".xlsx"
-  },
-  "verbs": ["create"],
+  "action_verb": "create",
+  "action_bucket": "utility",
+  "risk": "routine",
+  "status": "routed",
   "agent": "data-agent",
   "skills": ["spreadsheets"],
-  "matchedRoutes": [{"id": "spreadsheets", "score": 120}]
+  "primary": "spreadsheets",
+  "supporting": [],
+  "matchedRoutes": [{"id": "spreadsheets", "score": 108}]
 }
 ```
 
-### Automatically select downloaded skills
-
-Point the router at any local skill folders. No catalog is bundled with this repository:
+Automatically select from downloaded skills without remembering their names:
 
 ```bash
 node scripts/auto-route.mjs \
   --root /path/to/my/skills \
-  --request "Turn these results into a PowerPoint deck" \
+  --request "Create a PowerPoint deck from these results" \
   --top 2 \
   --pretty
 ```
 
-It reads local `name` and `description` frontmatter and returns only the best matches. People can keep downloading useful skills without memorizing invocation names, and private skill stacks stay private.
+The discovery router reads local `name`, `description`, and `bucket` frontmatter. It never prints or serializes the complete catalog.
 
 ## Install as an agent skill
 
-After publishing this folder in a public Git repository:
-
 ```bash
-npx skills add owner/repository --skill skill-router
+npx skills add luxurylifestyleco/skill-router --skill skill-router
 ```
 
-Install from a local checkout:
+Loading `SKILL.md` gives an agent the routing method. True pre-LLM interception requires one separate, approved host-native installation.
 
-```bash
-npx skills add ./skill-router
+## One-time pre-LLM installation
+
+```text
+one-time install -> detect host -> show exact adapter patch -> user verifies/approves
+                 -> install + ordering test
+future request   -> pre-LLM adapter -> deterministic router -> selected skills -> main LLM
 ```
 
-The standard [`SKILL.md`](SKILL.md) works without the reference CLI. The CLI is an optional, cross-platform implementation of the pre-LLM contract.
+The installer must be idempotent and approval-first. It may not silently edit configuration merely because this skill was installed. After activation, normal requests route automatically. Human Gates remain separate for publishing, spending, credentials, authorization, external commitments, and other material actions.
+
+The primary adapter targets are Claude Code, Codex, Hermes Agent, OpenRouter, Google Antigravity, Grok/xAI, OpenClaw, Qwen, DeepSeek, GLM, and Kimi. The core is host-independent; each adapter must use and verify the host's real lifecycle surface. See [`references/host-adapters.md`](references/host-adapters.md).
 
 ## Batch routing
 
-Send strings or structured envelopes as JSONL:
+Each input line is a string or an object with `message` and optional `id`:
 
 ```jsonl
-{"id":"1","message":"Make a quarterly deck"}
-{"id":"2","message":"Build it","buckets":{"task":"Build an Excel model","context":"Q3 forecast","constraints":"No macros","output":".xlsx"}}
+{"id":"1","message":"Create a quarterly deck"}
+{"id":"2","message":"Build an Excel model for the Q3 forecast with no macros"}
 ```
 
 ```bash
 node scripts/route.mjs --manifest examples/routes.json --input requests.jsonl
 ```
 
-Output is also JSONL, so a harness can stream plans to workers without buffering the entire batch.
+Output is JSONL, so a harness can stream plans to workers. Each verdict includes `action_verb`, `action_bucket`, `risk`, `status`, `primary`, `supporting`, selected skills, route evidence, and unavailable explicitly requested skills.
 
-## Platform-agnostic by design
+## Route manifest
 
-Skill Router does not import an agent SDK, call a provider API, assume a skill directory, or load arbitrary paths. A host supplies:
+Every route declares one of the four purpose buckets and may restrict matches to one or more of the eight action buckets:
 
-1. a trusted route manifest;
-2. an optional allowlist of available skills;
-3. one message or a JSONL stream.
-
-The host receives JSON and decides how to resolve the selected agent and skills. See [`references/pipeline.md`](references/pipeline.md) for the contract, safety boundaries, and integration sequence.
-
-### Host adapter status
-
-| Host | Pre-model integration | v1.0 status |
-| --- | --- | --- |
-| Claude Code | `UserPromptSubmit` | Designed |
-| Codex CLI / desktop | trusted plugin `UserPromptSubmit` | Designed |
-| Hermes Agent | `pre_llm_call` | Designed |
-| OpenClaw | typed pre-prompt plugin hook | Designed |
-| Google Antigravity CLI | `PreInvocation` | Designed |
-| OpenRouter | outbound request middleware | Designed |
-| Grok / xAI API | outbound request middleware | Designed |
-| Qwen / Alibaba Cloud Model Studio | outbound request middleware | Designed |
-| DeepSeek API | outbound request middleware | Designed |
-| GLM / Z.ai API | outbound request middleware | Designed |
-| Kimi / Moonshot API | outbound request middleware | Designed |
-
-`Designed` is deliberately not `shipped` or `verified`. The executable v1.0 release is the routing core. An adapter becomes verified only after contract tests and a real-host smoke test prove that it runs before the model call. See [`references/host-adapters.md`](references/host-adapters.md) for the activation contract, failure policy, and evidence requirements.
-
-Consumer chat websites are outside this claim. Without a supported hook, extension, or application-controlled API request, the router cannot honestly promise pre-LLM interception.
-
-### Your catalog stays private
-
-The public repository contains no personal skill inventory. A host can privately index 5, 500, or 10,000 locally installed skills; the router emits only the selected identifiers. It never prints or serializes the full catalog.
-
-## Accuracy boundary
-
-Deterministic code can parse structured fields and match rules, but it cannot fully understand arbitrary language. The CLI labels each envelope as `structured`, `explicit-headings`, or `heuristic`.
-
-For high-stakes or highly varied inputs, use structured callers, embeddings, or a dedicated routing classifier before the main LLM. Keep the same routing-plan contract so downstream integrations remain stable.
-
-## Test
-
-```bash
-node --test scripts/route.test.mjs
-node --test scripts/auto-route.test.mjs
+```json
+{
+  "id": "presentations",
+  "bucket": "utility",
+  "agent": "presentation-agent",
+  "skills": ["presentations"],
+  "match": {
+    "verbs": ["create"],
+    "any": ["slide deck", "presentation", "powerpoint"]
+  }
+}
 ```
 
-The suite covers four-bucket intake, structured batches, explicit skill requests, allowlisting, fallback behavior, and invalid manifests.
+## Safety and privacy
 
-## Roadmap
+- One primary skill; only required supporting skills.
+- Explicit `$skill-name` requests win only when the skill is available.
+- Invalid manifests, missing evidence, and missing dependencies fail closed.
+- Material or authorization-bearing requests reach a Human Gate.
+- Routing selects context; it does not execute skills or grant permission.
+- The public package contains no private catalog, local skill counts, or private skill names.
+- The router makes no network calls and includes no telemetry.
 
-- verified adapters for Claude Code, Codex, Hermes, OpenClaw, and Antigravity;
-- request middleware for OpenRouter, Grok/xAI, Qwen, DeepSeek, GLM, and Kimi;
-- a benchmark corpus for routing accuracy;
-- a visual manifest builder;
-- route analytics and drift detection;
-- signed, versioned route manifests.
+## Verify
 
-Contributions should improve the open contract, add realistic routing fixtures, or provide small host adapters without coupling the core to one platform.
+```bash
+npm test
+npm run check
+```
 
-## Publish and discovery
+The behavioral suite covers all eight action buckets, all four mappings, local discovery, explicit skill selection, privacy, batching, enrichment routing, Human Gates, fallback, and invalid manifests.
 
-A public repository containing `skill-router/SKILL.md` follows skills.sh discovery conventions. Add the `agent-skills` GitHub topic, publish tagged releases, and use the install command above in examples.
+## Platform status
 
-The strongest path to stars is evidence: publish reproducible routing fixtures and comparisons, not unverified performance claims. The strongest path to domain authority is a useful body of reference material about pre-LLM intake, skill routing, and auditable agent dispatch.
+The executable release is the provider-neutral routing core. Host adapters remain `designed` until adapter code, contract tests, and a real-host smoke test prove pre-model ordering. Consumer chat websites cannot be intercepted without a supported hook, extension, or application-controlled API request.
+
+See [`references/pipeline.md`](references/pipeline.md) for the contract and [`SECURITY.md`](SECURITY.md) for the trust boundary.
 
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
 
----
-
-**Skill Router is built by [@luxurylifestyleco](https://github.com/luxurylifestyleco) at [VEDAXI](https://vedaxi.com).** If it saves you from memorizing your growing skill stack, star the repository and share what you routed with it.
+If Skill Router saves you from memorizing a growing skill stack, star [the repository](https://github.com/luxurylifestyleco/skill-router) and share a routing case. More from [VEDAXI](https://vedaxi.com).

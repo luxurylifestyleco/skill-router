@@ -3,9 +3,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { classifyAction } from "./taxonomy.mjs";
 
 const STOP = new Set("a an and are as at be by can do for from how i in into is it of on or our please should that the their this to use we what when with you your".split(" "));
-const IDENTITY = { name: "skill-router", version: "1.0.0", author: "luxurylifestyleco", website: "https://vedaxi.com" };
+const IDENTITY = { name: "skill-router", version: "1.0.1", author: "luxurylifestyleco", website: "https://vedaxi.com" };
 const GROUPS = [
   ["create", "make", "build", "generate", "draft", "author"],
   ["analyze", "analyse", "assess", "evaluate", "inspect", "enrich", "enrichment"],
@@ -69,7 +70,7 @@ function frontmatter(file) {
   const fields = {};
   for (let index = 0; index < lines.length; index += 1) {
     const field = lines[index].match(/^([a-zA-Z][\w-]*):\s*(.*)$/);
-    if (!field || !["name", "description"].includes(field[1])) continue;
+    if (!field || !["name", "description", "bucket"].includes(field[1])) continue;
     let value = field[2];
     if (/^[>|][-+]?\s*$/.test(value)) {
       const parts = [];
@@ -79,7 +80,7 @@ function frontmatter(file) {
     fields[field[1]] = unquote(value);
   }
   if (!fields.name || !fields.description) return null;
-  return fields;
+  return { ...fields, bucket: fields.bucket || "utility" };
 }
 
 function discover(roots) {
@@ -118,10 +119,11 @@ function tokens(text, expand = false) {
   return [...base, ...base.flatMap((token) => SYNONYMS.get(token) ?? [])].map(stem);
 }
 
-function rank(message, skills) {
+function rank(message, skills, actionBucket) {
   const query = tokens(message, true);
   const querySet = new Set(query);
-  const documents = skills.map((skill) => ({
+  const explicit = [...message.matchAll(/(?:^|\s)\$([a-z0-9]+(?:-[a-z0-9]+)*)\b/g)].map((match) => match[1]);
+  const documents = skills.filter((skill) => skill.bucket === actionBucket || explicit.includes(skill.name)).map((skill) => ({
     ...skill,
     nameTokens: tokens(skill.name.replaceAll("-", " ")),
     descriptionTokens: tokens(skill.description)
@@ -132,7 +134,6 @@ function rank(message, skills) {
       frequency.set(token, (frequency.get(token) ?? 0) + 1);
     }
   }
-  const explicit = [...message.matchAll(/(?:^|\s)\$([a-z0-9]+(?:-[a-z0-9]+)*)\b/g)].map((match) => match[1]);
   return documents.map((document) => {
     let score = explicit.includes(document.name) ? 1000 : 0;
     const matched = [];
@@ -160,11 +161,14 @@ const minScore = options["min-score"] === undefined ? 1 : Number(options["min-sc
 if (!Number.isInteger(top) || top < 1 || !Number.isFinite(minScore)) fail("invalid --top or --min-score");
 
 const catalog = discover(options.roots);
-const selected = rank(options.request, catalog).filter((skill) => skill.score >= minScore).slice(0, top);
+const classification = classifyAction(options.request);
+const selected = rank(options.request, catalog, classification.action_bucket).filter((skill) => skill.score >= minScore).slice(0, top);
 const result = {
   version: 1,
   router: IDENTITY,
   message: options.request,
+  ...classification,
+  status: classification.risk === "human" || !selected.length ? "blocked" : "routed",
   selectedSkills: selected.map((skill) => ({
     name: skill.name,
     path: skill.path,

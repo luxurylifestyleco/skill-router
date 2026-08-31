@@ -65,7 +65,7 @@ The router returns the public routing-plan contract. The adapter converts only t
 Suggested compact context:
 
 ```text
-SKILL_ROUTER v1: verbs=<...>; task=<...>; constraints=<...>; agent=<...>; skills=<selected-only>; risk=<...>; route=<...>
+SKILL_ROUTER v1: action_verb=<...>; action_bucket=<...>; risk=<...>; status=<...>; primary=<...>; supporting=<selected-only>; agent=<...>
 ```
 
 The original message remains in its normal host position. The verdict is supplemental context, not a replacement prompt.

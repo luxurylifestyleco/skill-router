@@ -4,7 +4,7 @@
   "title": "Skill Router plan",
   "description": "Provider-neutral output contract for Skill Router by @luxurylifestyleco / VEDAXI.",
   "type": "object",
-  "required": ["version", "router", "message", "reason"],
+  "required": ["version", "router", "message", "action_verb", "action_bucket", "risk", "status", "reason"],
   "properties": {
     "version": { "const": 1 },
     "router": {
@@ -18,7 +18,12 @@
       },
       "additionalProperties": false
     },
+    "id": { "type": "string" },
     "message": { "type": "string", "minLength": 1 },
+    "action_verb": { "enum": ["sense", "understand", "decide", "create", "operate", "verify", "learn", "govern"] },
+    "action_bucket": { "enum": ["data-enrichment", "orchestration", "utility", "verification"] },
+    "risk": { "enum": ["routine", "human"] },
+    "status": { "enum": ["routed", "blocked"] },
     "reason": { "type": "string", "minLength": 1 }
   },
   "oneOf": [
@@ -44,24 +49,12 @@
     },
     {
       "title": "Manifest policy routing plan",
-      "required": ["buckets", "verbs", "bucketMethod", "agent", "skills", "matchedRoutes", "explicitSkills", "unavailableSkills"],
+      "required": ["agent", "skills", "primary", "supporting", "matchedRoutes", "explicitSkills", "unavailableSkills"],
       "properties": {
-        "id": { "type": "string" },
-        "buckets": {
-          "type": "object",
-          "required": ["task", "context", "constraints", "output"],
-          "properties": {
-            "task": { "type": "string" },
-            "context": { "type": "string" },
-            "constraints": { "type": "string" },
-            "output": { "type": "string" }
-          },
-          "additionalProperties": false
-        },
-        "verbs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-        "bucketMethod": { "enum": ["structured", "explicit-headings", "heuristic"] },
         "agent": { "type": "string", "minLength": 1 },
         "skills": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "primary": { "type": ["string", "null"] },
+        "supporting": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "maxItems": 3 },
         "matchedRoutes": {
           "type": "array",
           "items": {

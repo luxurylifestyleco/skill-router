@@ -4,41 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline";
+import { ACTION_VERBS, PURPOSE_BUCKETS, classifyAction } from "./taxonomy.mjs";
 
-const BUCKETS = ["task", "context", "constraints", "output"];
-const VERB_FORMS = new Map(Object.entries({
-  add: ["add", "append", "include"],
-  analyze: ["analyze", "analyse", "assess", "enrich", "enrichment"],
-  audit: ["audit", "inspect"],
-  build: ["build", "implement", "develop"],
-  classify: ["classify", "bucket", "categorize", "categorise"],
-  compare: ["compare", "contrast"],
-  configure: ["configure", "set up", "setup"],
-  convert: ["convert", "transform"],
-  create: ["create", "make", "generate", "draft"],
-  debug: ["debug", "diagnose", "investigate"],
-  deploy: ["deploy", "release", "ship"],
-  design: ["design", "prototype"],
-  edit: ["edit", "revise", "rewrite"],
-  explain: ["explain", "teach", "describe"],
-  extract: ["extract", "parse"],
-  find: ["find", "search", "discover", "locate"],
-  fix: ["fix", "repair", "resolve"],
-  integrate: ["integrate", "connect"],
-  migrate: ["migrate", "move", "port"],
-  optimize: ["optimize", "optimise", "improve"],
-  plan: ["plan", "organize", "organise"],
-  publish: ["publish", "distribute", "share"],
-  remove: ["remove", "delete"],
-  research: ["research", "study"],
-  review: ["review", "critique"],
-  route: ["route", "dispatch", "delegate"],
-  summarize: ["summarize", "summarise", "recap"],
-  test: ["test", "verify", "validate"],
-  update: ["update", "upgrade", "refresh"],
-  write: ["write", "author"]
-}));
-const IDENTITY = { name: "skill-router", version: "1.0.0", author: "luxurylifestyleco", website: "https://vedaxi.com" };
+const IDENTITY = { name: "skill-router", version: "1.0.1", author: "luxurylifestyleco", website: "https://vedaxi.com" };
 const USAGE = `Skill Router by @luxurylifestyleco / VEDAXI — https://vedaxi.com
 
 Usage:
@@ -51,10 +19,14 @@ Options:
   --pretty                       Pretty-print one-request output
   --help                         Show this help`;
 
-function fail(message) {
-  process.stderr.write(`skill-router: ${message}\n`);
-  process.exit(2);
+function fail(message) { process.stderr.write(`skill-router: ${message}\n`); process.exit(2); }
+function list(value, field) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) fail(`${field} must be a string array`);
+  return value;
 }
+const clean = (text) => text.trim().replace(/\s+/g, " ");
+const unique = (items) => [...new Set(items)];
 
 function args(argv) {
   const result = {};
@@ -70,12 +42,6 @@ function args(argv) {
   return result;
 }
 
-function list(value, field) {
-  if (value === undefined) return [];
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) fail(`${field} must be a string array`);
-  return value;
-}
-
 function loadManifest(file) {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(file, "utf8")); }
@@ -88,21 +54,22 @@ function loadManifest(file) {
     if (ids.has(route.id)) fail(`duplicate route id ${route.id}`);
     ids.add(route.id);
     if (typeof route.agent !== "string" || !route.agent) fail(`${at}.agent is required`);
+    if (!PURPOSE_BUCKETS.includes(route.bucket)) fail(`${at}.bucket must be one of ${PURPOSE_BUCKETS.join(", ")}`);
     const match = route.match ?? {};
-    const scopes = list(match.in, `${at}.match.in`);
-    if (scopes.some((name) => !BUCKETS.includes(name))) fail(`${at}.match.in contains an unknown bucket`);
+    const verbs = list(match.verbs, `${at}.match.verbs`).map((verb) => verb.toLowerCase());
+    if (verbs.some((verb) => !(verb in ACTION_VERBS))) fail(`${at}.match.verbs contains an unknown action bucket`);
     const patterns = list(match.patterns, `${at}.match.patterns`).map((source) => {
       try { return { source, regex: new RegExp(source, "i") }; }
       catch (error) { fail(`${at} has invalid pattern ${JSON.stringify(source)}: ${error.message}`); }
     });
     return {
       id: route.id,
+      bucket: route.bucket,
       agent: route.agent,
       skills: list(route.skills, `${at}.skills`),
       priority: Number.isFinite(route.priority) ? route.priority : 0,
       match: {
-        in: scopes.length ? scopes : BUCKETS,
-        verbs: list(match.verbs, `${at}.match.verbs`).map((verb) => verb.toLowerCase()),
+        verbs,
         any: list(match.any, `${at}.match.any`),
         all: list(match.all, `${at}.match.all`),
         none: list(match.none, `${at}.match.none`),
@@ -118,89 +85,13 @@ function loadManifest(file) {
     routes,
     maxRoutes,
     minScore,
-    fallback: {
-      agent: raw.fallback?.agent || "general-agent",
-      skills: list(raw.fallback?.skills, "fallback.skills")
-    }
+    fallback: { agent: raw.fallback?.agent || "general-agent", skills: list(raw.fallback?.skills, "fallback.skills") }
   };
 }
 
-const clean = (text) => text.trim().replace(/\s+/g, " ");
-
-function explicitEnvelope(message, supplied) {
-  if (!supplied) return null;
-  const envelope = {};
-  for (const bucket of BUCKETS) {
-    if (typeof supplied[bucket] !== "string") fail(`buckets.${bucket} must be a string`);
-    envelope[bucket] = clean(supplied[bucket]);
-  }
-  return envelope;
-}
-
-function extractVerbs(task, supplied) {
-  if (supplied !== undefined) {
-    if (!Array.isArray(supplied) || supplied.some((verb) => typeof verb !== "string" || !verb.trim())) {
-      fail("verbs must be an array of non-empty strings");
-    }
-    return unique(supplied.map((verb) => clean(verb).toLowerCase()));
-  }
-  const normalized = ` ${task.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
-  const found = [];
-  for (const [canonical, forms] of VERB_FORMS) {
-    if (forms.some((form) => normalized.includes(` ${form} `))) found.push(canonical);
-  }
-  return found;
-}
-
-function headedEnvelope(message) {
-  const found = [...message.matchAll(/(?:^|\n)\s*(task|context|constraints?|output)\s*:\s*/gi)];
-  if (!found.length) return null;
-  const envelope = Object.fromEntries(BUCKETS.map((name) => [name, ""]));
-  for (let index = 0; index < found.length; index += 1) {
-    const rawName = found[index][1].toLowerCase();
-    const name = rawName.startsWith("constraint") ? "constraints" : rawName;
-    const start = found[index].index + found[index][0].length;
-    const end = found[index + 1]?.index ?? message.length;
-    envelope[name] = clean(message.slice(start, end));
-  }
-  return envelope;
-}
-
-function heuristicEnvelope(message) {
-  const headed = headedEnvelope(message);
-  if (headed) return { buckets: headed, method: "explicit-headings" };
-  const sentences = message.split(/(?<=[.!?])\s+|\n+/).map(clean).filter(Boolean);
-  const buckets = Object.fromEntries(BUCKETS.map((name) => [name, []]));
-  for (const sentence of sentences) {
-    if (/\b(must|should|only|without|do not|don't|never|prefer|limit|under|at most|required)\b/i.test(sentence)) buckets.constraints.push(sentence);
-    else if (/\b(output|deliver|return|respond|format|as (?:a|an)|\.docx|\.xlsx|\.pptx|json|markdown)\b/i.test(sentence)) buckets.output.push(sentence);
-    else if (/\b(context|background|currently|existing|because|given|using|in our|for our)\b/i.test(sentence)) buckets.context.push(sentence);
-    else buckets.task.push(sentence);
-  }
-  if (!buckets.task.length && sentences.length) buckets.task.push(sentences[0]);
-  return {
-    buckets: Object.fromEntries(BUCKETS.map((name) => [name, buckets[name].join(" ")])),
-    method: "heuristic"
-  };
-}
-
-function envelope(item) {
-  const message = typeof item === "string" ? item : (item?.message ?? item?.request);
-  if (typeof message !== "string" || !message.trim()) throw new Error("input needs a non-empty message");
-  const supplied = typeof item === "object" && item ? explicitEnvelope(message, item.buckets) : null;
-  const inferred = supplied ? null : heuristicEnvelope(message);
-  const buckets = supplied ?? inferred.buckets;
-  return {
-    id: typeof item === "object" && item?.id !== undefined ? String(item.id) : undefined,
-    message,
-    buckets,
-    verbs: extractVerbs(buckets.task, typeof item === "object" && item ? item.verbs : undefined),
-    bucketMethod: supplied ? "structured" : inferred.method
-  };
-}
-
-function score(route, buckets) {
-  const text = route.match.in.map((name) => buckets[name]).join(" ").toLowerCase();
+function score(route, message, actionVerb) {
+  if (route.match.verbs.length && !route.match.verbs.includes(actionVerb)) return null;
+  const text = message.toLowerCase();
   const hits = (items) => items.filter((item) => text.includes(item.toLowerCase()));
   if (hits(route.match.none).length) return null;
   const all = hits(route.match.all);
@@ -212,33 +103,37 @@ function score(route, buckets) {
   return route.priority + all.length * 10 + any.length * 4 + patterns.length * 6 + extensions.length * 8;
 }
 
-const unique = (items) => [...new Set(items)];
+function normalize(item) {
+  const message = typeof item === "string" ? item : (item?.message ?? item?.request);
+  if (typeof message !== "string" || !message.trim()) throw new Error("input needs a non-empty message");
+  return { id: typeof item === "object" && item?.id !== undefined ? String(item.id) : undefined, message };
+}
 
 function route(manifest, item, available) {
-  const env = envelope(item);
+  const input = normalize(item);
+  const classification = classifyAction(input.message);
   const matched = manifest.routes
-    .map((entry) => {
-      const textScore = score(entry, env.buckets);
-      const verbHits = entry.match.verbs.filter((verb) => env.verbs.includes(verb)).length;
-      return { route: entry, score: textScore === null ? null : textScore + verbHits * 12 };
-    })
+    .filter((entry) => entry.bucket === classification.action_bucket)
+    .map((entry) => ({ route: entry, score: score(entry, input.message, classification.action_verb) }))
     .filter((entry) => entry.score !== null && entry.score >= manifest.minScore)
     .sort((a, b) => b.score - a.score || a.route.id.localeCompare(b.route.id))
     .slice(0, manifest.maxRoutes);
-  const explicit = unique([...env.message.matchAll(/(?:^|\s)\$([a-z0-9]+(?:-[a-z0-9]+)*)\b/g)].map((match) => match[1]));
+  const explicit = unique([...input.message.matchAll(/(?:^|\s)\$([a-z0-9]+(?:-[a-z0-9]+)*)\b/g)].map((match) => match[1]));
   const candidates = unique([...explicit, ...(matched.length ? matched.flatMap((entry) => entry.route.skills) : manifest.fallback.skills)]);
   const skills = available ? candidates.filter((name) => available.has(name)) : candidates;
   const unavailableSkills = available ? candidates.filter((name) => !available.has(name)) : [];
+  const blocked = classification.risk === "human" || skills.length === 0;
   return {
     version: 1,
     router: IDENTITY,
-    ...(env.id === undefined ? {} : { id: env.id }),
-    message: env.message,
-    buckets: env.buckets,
-    verbs: env.verbs,
-    bucketMethod: env.bucketMethod,
+    ...(input.id === undefined ? {} : { id: input.id }),
+    message: input.message,
+    ...classification,
+    status: blocked ? "blocked" : "routed",
     agent: matched[0]?.route.agent ?? manifest.fallback.agent,
     skills,
+    primary: skills[0] ?? null,
+    supporting: skills.slice(1, 4),
     matchedRoutes: matched.map((entry) => ({ id: entry.route.id, score: entry.score })),
     explicitSkills: explicit,
     unavailableSkills,
@@ -258,20 +153,15 @@ async function* jsonLines(input) {
 }
 
 const options = args(process.argv.slice(2));
-if (options.help) {
-  process.stdout.write(`${USAGE}\n`);
-  process.exit(0);
-}
+if (options.help) { process.stdout.write(`${USAGE}\n`); process.exit(0); }
 if (!options.manifest) fail("--manifest is required");
 if (Boolean(options.request) === Boolean(options.input)) fail("provide exactly one of --request or --input");
 if (options.pretty && options.input) fail("--pretty only works with --request");
 const manifest = loadManifest(path.resolve(options.manifest));
 const available = options.available === undefined ? null : new Set(options.available.split(",").map(clean).filter(Boolean));
-
 try {
   if (options.request) {
-    const plan = route(manifest, { id: options.id, message: options.request }, available);
-    process.stdout.write(`${JSON.stringify(plan, null, options.pretty ? 2 : 0)}\n`);
+    process.stdout.write(`${JSON.stringify(route(manifest, { id: options.id, message: options.request }, available), null, options.pretty ? 2 : 0)}\n`);
   } else {
     for await (const item of jsonLines(options.input)) process.stdout.write(`${JSON.stringify(route(manifest, item, available))}\n`);
   }

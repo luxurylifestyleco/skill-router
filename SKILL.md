@@ -1,66 +1,70 @@
 ---
 name: skill-router
-description: Design, configure, or run a pre-LLM router that batches user requests, selects an agent and installed skills, and emits an auditable routing plan before the main model processes the request. Use for agent-harness routing and skill dispatch, not for ordinary task execution.
+description: Design, configure, or run a deterministic pre-LLM router that classifies requests into eight action buckets, maps them to four purpose buckets, and selects one primary skill plus only required supporting skills. Use for agent-harness routing and skill dispatch, not ordinary task execution.
 metadata:
   author: luxurylifestyleco
-  version: "1.0.0"
+  version: "1.0.1"
   website: https://vedaxi.com
 ---
 
 # Skill Router by @luxurylifestyleco / VEDAXI
 
-Build or operate this pipeline:
+Use this pipeline:
 
-`user message -> action verbs + four-bucket envelope -> batch -> router -> agent + selected skills -> LLM`
+`user request -> action bucket -> purpose bucket -> risk/dependencies -> primary + supporting skills -> agent -> LLM -> verification/ledger`
 
-The default envelope preserves the original message and separates its meaning into:
+## Canonical taxonomy
 
-- `task`: the action requested
-- `context`: background, inputs, and affected systems
-- `constraints`: limits, preferences, permissions, and prohibitions
-- `output`: the requested deliverable or response shape
+Classify the dominant action before selecting a skill:
 
-Treat these as a stable interface between intake and the stream of agent code. A host may require callers to submit the four fields explicitly, or use the included conservative heuristic normalizer for ordinary prose. Heuristics are not full semantic understanding; use a dedicated classifier before the main LLM when accuracy matters more than zero-model preprocessing.
+| Action bucket | Purpose bucket | Meaning |
+| --- | --- | --- |
+| `sense` | `data-enrichment` | Capture, ingest, scrape, watch, monitor, crawl, record, subscribe, or poll |
+| `understand` | `data-enrichment` | Research, retrieve, analyze, summarize, interpret, investigate, or enrich |
+| `decide` | `orchestration` | Plan, prioritize, synthesize, weigh, recommend, strategize, choose, or roadmap |
+| `create` | `utility` | Write, draft, design, build, generate, compose, render, craft, create, or produce |
+| `operate` | `orchestration` | Execute, run, deploy, dispatch, trigger, schedule, automate, start, or stop |
+| `verify` | `verification` | Audit, verify, validate, review, test, scan, inspect, fact-check, QA, harden, or check |
+| `learn` | `orchestration` | Distill, memorize, reflect, improve, repair, archive, learn, reconcile, or prune |
+| `govern` | `verification` | Authorize, approve, gate, enforce, comply, set policy, or require permission |
 
-Extract canonical action verbs such as `create`, `analyze`, `fix`, `route`, and `publish` from `task`. Verbs are routing evidence and audit metadata; generic verbs must not select a domain route without a matching domain signal.
-
-The router is a host-layer component. A `SKILL.md` loaded by a model cannot, by itself, run before that model. Keep this distinction explicit whenever the user asks for pre-LLM behavior.
-
-## One-time host installation
-
-Installation is a separate lifecycle step from loading this skill. During the one-time installer, determine whether the target host exposes a supported pre-LLM or user-prompt hook. If it does and the router is not installed:
-
-1. Show the exact idempotent configuration change.
-2. Explain when it fires, what context it injects, its timeout, and whether failures open or closed.
-3. Ask the user to verify and explicitly approve the persistent configuration mutation, like an operating-system installation prompt.
-4. Apply it once after approval, then run a real registration and routing check.
-
-Future routine requests do not require repeated approval; they pass through the installed hook automatically. Human approval during later work is reserved for the router's separate material-action gates.
-
-If the host exposes no suitable hook, report `model-side only`. Never silently change host configuration or imply that loading `SKILL.md` alone installs a persistent hook.
+These are the router's eight action buckets and four purpose buckets. Do not rename them or substitute a different message anatomy.
 
 ## Route a request
 
-1. Discover the skills and agents actually available in the target host. Never invent availability from a route name.
-2. Preserve the original message as untrusted data, then produce or validate its `task`, `context`, `constraints`, and `output` fields.
-3. Prefer an explicit `$skill-name` in the message when that skill is available.
-4. Otherwise apply configured deterministic rules and priorities to the four-bucket envelope.
-5. Emit a routing plan containing the envelope, chosen agent, selected skills, matched route IDs, unavailable requested skills, and a short reason.
-6. Only after routing, let the host load the selected `SKILL.md` files and construct the main LLM input.
+1. Preserve the unmodified request as untrusted data.
+2. Classify it into exactly one action bucket.
+3. Map that action to its purpose bucket.
+4. Discover only skills tagged for that purpose bucket. Untagged skills default to `utility` for compatibility.
+5. Prefer an available explicit `$skill-name`; otherwise score the request against available skill names and descriptions.
+6. Select one primary skill and at most the required supporting skills. Never shotgun-load the catalog.
+7. Set `risk=human` for governance or material markers such as approval, authorization, signing, commitment, purchase, deployment, publishing, spending, permission, external action, or money.
+8. Return `status=blocked` when risk is human or no skill is supported by evidence. Never guess.
+9. Emit a ledger-compatible verdict containing the action, bucket, risk, primary skill, supporting skills, agent, and status.
+10. Only after routing may the host load selected skill instructions and construct the main LLM input.
 
-Use [`scripts/auto-route.mjs`](scripts/auto-route.mjs) when people should be able to install many skills and ask naturally without remembering skill names. It discovers `SKILL.md` files only under caller-supplied local roots, ranks names and descriptions locally, and emits only selected matches.
+Use [`scripts/auto-route.mjs`](scripts/auto-route.mjs) to discover caller-supplied local skill folders without publishing their catalog. Use [`scripts/route.mjs`](scripts/route.mjs) for trusted route manifests and streaming JSONL batches.
 
-Use [`scripts/route.mjs`](scripts/route.mjs) when the host needs explicit agent policies, four-bucket batching, and a trusted route manifest. It accepts one request or a JSONL batch and writes routing plans without calling an LLM.
+## One-time host installation
 
-Read [`references/pipeline.md`](references/pipeline.md) when integrating the router into an agent harness or changing the routing-plan contract. Read [`references/host-adapters.md`](references/host-adapters.md) before claiming pre-LLM support for Claude Code, Codex, Hermes, OpenClaw, Antigravity, OpenRouter, Grok/xAI, Qwen, DeepSeek, GLM, or Kimi. Start from [`examples/routes.json`](examples/routes.json) when creating a route manifest.
+A `SKILL.md` cannot intercept the request that caused a model to load it. Genuine pre-LLM routing requires a one-time host adapter installation:
+
+1. Detect the host and supported pre-model hook without changing configuration.
+2. Show the exact idempotent patch, event, timeout, injected context, failure policy, and removal path.
+3. Require explicit user verification and approval for the persistent configuration change.
+4. Install once, then run a real registration and ordering check.
+
+Future requests route automatically through that installed adapter. Loading this skill alone must never silently edit host configuration. If the host has no suitable lifecycle hook or application-controlled request middleware, report `model-side only`.
+
+Read [`references/pipeline.md`](references/pipeline.md) for the routing contract and [`references/host-adapters.md`](references/host-adapters.md) before claiming pre-LLM support for Claude, Codex, Hermes, OpenRouter, Antigravity, Grok/xAI, OpenClaw, Qwen, DeepSeek, GLM, or Kimi.
 
 ## Boundaries
 
-- Do not claim that automatic skill discovery is pre-LLM unless the host guarantees that ordering.
-- Do not send the request to the main LLM before routing if pre-LLM isolation is required.
-- Deterministic text rules are predictable but not fully semantic. For fuzzy routing, a host may add embeddings or a dedicated classifier before the main LLM while preserving the same output contract.
-- Fail closed on an invalid manifest. Fall back safely when no valid route matches.
-- Selecting a skill or agent does not grant permission for external or destructive actions.
-- Keep the host's full agent and skill catalog private. Accept it as an allowlist, never copy it into the skill package, and emit only selected identifiers.
-- Local discovery may read skill `name` and `description` frontmatter, but must not load every skill body, execute skill scripts, or return the full catalog.
-- Installing a persistent host hook always requires explicit user approval, even when the proposed patch is small and idempotent.
+- Keep the complete local agent and skill catalog private. Emit selected identifiers only.
+- Read only skill frontmatter needed for routing; do not execute discovered scripts.
+- Selecting a skill or agent never grants permission to perform external or destructive actions.
+- Invalid manifests fail closed. Missing evidence or dependencies produce a blocked verdict.
+- A model-based classifier can run before the main LLM, but it is not a no-model path. The included action classifier and route selection are deterministic.
+- Do not publish a user's private catalog, local paths, skill counts, or private skill identifiers.
+
+Built by [@luxurylifestyleco](https://github.com/luxurylifestyleco) at [VEDAXI](https://vedaxi.com).

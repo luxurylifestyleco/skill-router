@@ -11,24 +11,24 @@
   "routes": [
     {
       "id": "data-enrichment",
+      "bucket": "data-enrichment",
       "agent": "research-agent",
       "skills": ["company-research", "contact-enrichment"],
       "priority": 110,
       "match": {
-        "in": ["task", "context"],
-        "verbs": ["analyze"],
+        "verbs": ["understand"],
         "any": ["enrich", "enrichment", "prospect list", "company funding", "contact details"],
         "patterns": ["\\b(funding|investors?|contacts?|firmographic)\\b"]
       }
     },
     {
       "id": "documents",
+      "bucket": "utility",
       "agent": "document-agent",
       "skills": ["documents"],
       "priority": 100,
       "match": {
-        "in": ["task", "output"],
-        "verbs": ["create", "write", "edit"],
+        "verbs": ["create"],
         "any": ["word document", "write a report", "edit a document"],
         "patterns": ["\\bdocx?\\b"],
         "extensions": [".docx"],
@@ -37,12 +37,12 @@
     },
     {
       "id": "spreadsheets",
+      "bucket": "utility",
       "agent": "data-agent",
       "skills": ["spreadsheets"],
       "priority": 90,
       "match": {
-        "in": ["task", "context", "output"],
-        "verbs": ["create", "build", "analyze"],
+        "verbs": ["create"],
         "any": ["spreadsheet", "excel", "workbook"],
         "patterns": ["\\b(xlsx|csv)\\b"],
         "extensions": [".xlsx", ".csv"]
@@ -50,12 +50,12 @@
     },
     {
       "id": "presentations",
+      "bucket": "utility",
       "agent": "presentation-agent",
       "skills": ["presentations"],
       "priority": 80,
       "match": {
-        "in": ["task", "output"],
-        "verbs": ["create", "design", "write"],
+        "verbs": ["create"],
         "any": ["slide deck", "presentation", "powerpoint"],
         "patterns": ["\\bpptx?\\b"],
         "extensions": [".pptx"]
