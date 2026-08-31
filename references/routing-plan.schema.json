@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vedaxi.com/schemas/skill-router/routing-plan.v1.json",
+  "title": "Skill Router plan",
+  "description": "Provider-neutral output contract for Skill Router by @luxurylifestyleco / VEDAXI.",
+  "type": "object",
+  "required": ["version", "router", "message", "reason"],
+  "properties": {
+    "version": { "const": 1 },
+    "router": {
+      "type": "object",
+      "required": ["name", "version", "author", "website"],
+      "properties": {
+        "name": { "const": "skill-router" },
+        "version": { "type": "string" },
+        "author": { "const": "luxurylifestyleco" },
+        "website": { "const": "https://vedaxi.com" }
+      },
+      "additionalProperties": false
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 }
+  },
+  "oneOf": [
+    {
+      "title": "Automatic local discovery plan",
+      "required": ["selectedSkills"],
+      "properties": {
+        "selectedSkills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "path", "score", "matched"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "score": { "type": "number" },
+              "matched": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "title": "Manifest policy routing plan",
+      "required": ["buckets", "verbs", "bucketMethod", "agent", "skills", "matchedRoutes", "explicitSkills", "unavailableSkills"],
+      "properties": {
+        "id": { "type": "string" },
+        "buckets": {
+          "type": "object",
+          "required": ["task", "context", "constraints", "output"],
+          "properties": {
+            "task": { "type": "string" },
+            "context": { "type": "string" },
+            "constraints": { "type": "string" },
+            "output": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "verbs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "bucketMethod": { "enum": ["structured", "explicit-headings", "heuristic"] },
+        "agent": { "type": "string", "minLength": 1 },
+        "skills": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "matchedRoutes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "score"],
+            "properties": {
+              "id": { "type": "string" },
+              "score": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "explicitSkills": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "unavailableSkills": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    }
+  ]
+}

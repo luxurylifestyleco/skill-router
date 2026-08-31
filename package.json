@@ -1,0 +1,48 @@
+{
+  "name": "skill-router-by-luxurylifestyleco",
+  "version": "1.0.0",
+  "description": "Private local skill discovery and auditable pre-LLM routing without memorizing skill names.",
+  "type": "module",
+  "license": "MIT",
+  "author": "luxurylifestyleco",
+  "homepage": "https://vedaxi.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luxurylifestyleco/skill-router.git"
+  },
+  "bugs": {
+    "url": "https://github.com/luxurylifestyleco/skill-router/issues"
+  },
+  "funding": "https://vedaxi.com",
+  "keywords": [
+    "agent-skills",
+    "ai-agents",
+    "llm-routing",
+    "prompt-routing",
+    "skill-router",
+    "pre-llm",
+    "multi-agent"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "skill-auto-route": "scripts/auto-route.mjs",
+    "skill-policy-route": "scripts/route.mjs"
+  },
+  "scripts": {
+    "test": "node --test scripts/*.test.mjs",
+    "check": "node --check scripts/auto-route.mjs && node --check scripts/route.mjs",
+    "demo": "node scripts/auto-route.mjs --root . --request \"Find the skill that routes installed skills\" --pretty"
+  },
+  "files": [
+    "SKILL.md",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "scripts/",
+    "examples/",
+    "references/"
+  ]
+}

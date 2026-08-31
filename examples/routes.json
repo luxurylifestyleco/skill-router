@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "settings": {
+    "maxRoutes": 2,
+    "minScore": 1
+  },
+  "fallback": {
+    "agent": "general-agent",
+    "skills": []
+  },
+  "routes": [
+    {
+      "id": "data-enrichment",
+      "agent": "research-agent",
+      "skills": ["company-research", "contact-enrichment"],
+      "priority": 110,
+      "match": {
+        "in": ["task", "context"],
+        "verbs": ["analyze"],
+        "any": ["enrich", "enrichment", "prospect list", "company funding", "contact details"],
+        "patterns": ["\\b(funding|investors?|contacts?|firmographic)\\b"]
+      }
+    },
+    {
+      "id": "documents",
+      "agent": "document-agent",
+      "skills": ["documents"],
+      "priority": 100,
+      "match": {
+        "in": ["task", "output"],
+        "verbs": ["create", "write", "edit"],
+        "any": ["word document", "write a report", "edit a document"],
+        "patterns": ["\\bdocx?\\b"],
+        "extensions": [".docx"],
+        "none": ["spreadsheet"]
+      }
+    },
+    {
+      "id": "spreadsheets",
+      "agent": "data-agent",
+      "skills": ["spreadsheets"],
+      "priority": 90,
+      "match": {
+        "in": ["task", "context", "output"],
+        "verbs": ["create", "build", "analyze"],
+        "any": ["spreadsheet", "excel", "workbook"],
+        "patterns": ["\\b(xlsx|csv)\\b"],
+        "extensions": [".xlsx", ".csv"]
+      }
+    },
+    {
+      "id": "presentations",
+      "agent": "presentation-agent",
+      "skills": ["presentations"],
+      "priority": 80,
+      "match": {
+        "in": ["task", "output"],
+        "verbs": ["create", "design", "write"],
+        "any": ["slide deck", "presentation", "powerpoint"],
+        "patterns": ["\\bpptx?\\b"],
+        "extensions": [".pptx"]
+      }
+    }
+  ]
+}

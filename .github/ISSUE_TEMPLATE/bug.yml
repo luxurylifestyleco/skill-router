@@ -1,0 +1,45 @@
+name: Routing bug
+description: Report an incorrect route, parser failure, or privacy issue that is safe to discuss publicly.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not paste private skill catalogs, proprietary prompts, credentials, or unpatched vulnerabilities. Use a private Security Advisory for vulnerabilities.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Router mode
+      options:
+        - Local automatic discovery
+        - Manifest and batch routing
+        - Agent skill instructions
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal public reproduction
+      description: Use synthetic skill names and descriptions where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Environment and verification
+      description: Include Node version, operating system, command, and relevant output.
+

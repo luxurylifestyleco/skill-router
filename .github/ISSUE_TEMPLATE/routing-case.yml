@@ -1,0 +1,33 @@
+name: Routing case
+description: Contribute a realistic public request that should select a specific skill.
+title: "[Case]: "
+labels: ["routing-case"]
+body:
+  - type: textarea
+    id: request
+    attributes:
+      label: User request
+      description: Use public or synthetic content only.
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: Expected skill
+      placeholder: presentation-builder
+    validations:
+      required: true
+  - type: textarea
+    id: frontmatter
+    attributes:
+      label: Public SKILL.md frontmatter
+      description: Include only the name and description needed to reproduce the route.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this route is correct
+    validations:
+      required: true
+
