@@ -81,12 +81,15 @@ function loadManifest(file) {
   const maxRoutes = raw.settings?.maxRoutes ?? 1;
   const minScore = raw.settings?.minScore ?? 1;
   if (!Number.isInteger(maxRoutes) || maxRoutes < 1 || !Number.isFinite(minScore)) fail("invalid router settings");
-  return {
-    routes,
-    maxRoutes,
-    minScore,
-    fallback: { agent: raw.fallback?.agent || "general-agent", skills: list(raw.fallback?.skills, "fallback.skills") }
+  const fallback = { agent: raw.fallback?.agent || "general-agent", skills: list(raw.fallback?.skills, "fallback.skills") };
+  const skillBuckets = new Map();
+  const declare = (name, bucket) => {
+    if (!skillBuckets.has(name)) skillBuckets.set(name, new Set());
+    skillBuckets.get(name).add(bucket);
   };
+  for (const entry of routes) for (const name of entry.skills) declare(name, entry.bucket);
+  for (const name of fallback.skills) for (const bucket of PURPOSE_BUCKETS) declare(name, bucket);
+  return { routes, maxRoutes, minScore, fallback, skillBuckets };
 }
 
 function score(route, message, actionVerb) {
@@ -118,10 +121,16 @@ function route(manifest, item, available) {
     .filter((entry) => entry.score !== null && entry.score >= manifest.minScore)
     .sort((a, b) => b.score - a.score || a.route.id.localeCompare(b.route.id))
     .slice(0, manifest.maxRoutes);
-  const explicit = unique([...input.message.matchAll(/(?:^|\s)\$([a-z0-9]+(?:-[a-z0-9]+)*)\b/g)].map((match) => match[1]));
+  // A $skill-name arrives inside the untrusted message, so it may only name a skill the
+  // manifest already declares for this purpose bucket. Anything else is reported, not routed.
+  const requested = unique([...input.message.matchAll(/(?:^|\s)\$([a-z0-9]+(?:-[a-z0-9]+)*)\b/g)].map((match) => match[1]));
+  const explicit = requested.filter((name) => manifest.skillBuckets.get(name)?.has(classification.action_bucket));
   const candidates = unique([...explicit, ...(matched.length ? matched.flatMap((entry) => entry.route.skills) : manifest.fallback.skills)]);
   const skills = available ? candidates.filter((name) => available.has(name)) : candidates;
-  const unavailableSkills = available ? candidates.filter((name) => !available.has(name)) : [];
+  const unavailableSkills = unique([
+    ...requested.filter((name) => !explicit.includes(name)),
+    ...(available ? candidates.filter((name) => !available.has(name)) : [])
+  ]);
   const blocked = classification.risk === "human" || skills.length === 0;
   return {
     version: 1,
@@ -135,7 +144,7 @@ function route(manifest, item, available) {
     primary: skills[0] ?? null,
     supporting: skills.slice(1, 4),
     matchedRoutes: matched.map((entry) => ({ id: entry.route.id, score: entry.score })),
-    explicitSkills: explicit,
+    explicitSkills: requested,
     unavailableSkills,
     reason: matched.length ? `Matched route${matched.length > 1 ? "s" : ""}: ${matched.map((entry) => entry.route.id).join(", ")}` : "No rule matched; used fallback"
   };
