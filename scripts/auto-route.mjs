@@ -7,6 +7,10 @@ import { classifyAction } from "./taxonomy.mjs";
 
 const STOP = new Set("a an and are as at be by can do for from how i in into is it of on or our please should that the their this to use we what when with you your".split(" "));
 const IDENTITY = { name: "skill-router", version: "1.0.1", author: "luxurylifestyleco", website: "https://vedaxi.com" };
+// Canonical purpose buckets. A skill tagged outside this set is mis-tagged and
+// pollutes routing (e.g. an SEO/verification skill tagged data-enrichment leaks
+// into every enrichment route). Validate before routing.
+const PURPOSE_BUCKETS = new Set(["utility", "verification", "data-enrichment", "orchestration"]);
 const GROUPS = [
   ["create", "make", "build", "generate", "draft", "author"],
   ["analyze", "analyse", "assess", "evaluate", "inspect", "enrich", "enrichment"],
@@ -30,6 +34,7 @@ Usage:
 Options:
   --top <number>       Maximum selected skills (default: 3)
   --min-score <score>  Minimum lexical score (default: 1)
+  --allowlist <file>   JSON map of skill-name -> expected bucket; flags drift
   --pretty             Pretty-print JSON
   --help               Show this help`;
 
@@ -44,7 +49,7 @@ function parseArgs(argv) {
     const key = argv[index];
     if (key === "--help") options.help = true;
     else if (key === "--pretty") options.pretty = true;
-    else if (["--root", "--request", "--top", "--min-score"].includes(key)) {
+    else if (["--root", "--request", "--top", "--min-score", "--allowlist"].includes(key)) {
       const value = argv[++index];
       if (value === undefined) fail(`${key} requires a value`);
       if (key === "--root") options.roots.push(value);
@@ -96,7 +101,18 @@ function discover(roots) {
     const skillFile = path.join(real, "SKILL.md");
     if (fs.existsSync(skillFile)) {
       const metadata = frontmatter(skillFile);
-      if (metadata) skills.push({ ...metadata, path: skillFile });
+      if (metadata) {
+        // Bucket hygiene: a skill tagged outside the canonical set is mis-tagged
+        // and would pollute routing. Flag it so the owner can re-tag, instead of
+        // silently routing through a wrong bucket.
+        if (!PURPOSE_BUCKETS.has(metadata.bucket)) {
+          process.stderr.write(
+            `skill-router: WARN skill "${metadata.name}" has non-canonical bucket "${metadata.bucket}" ` +
+            `(expected one of ${[...PURPOSE_BUCKETS].join(", ")}). Re-tag it or it will route incorrectly.\n`
+          );
+        }
+        skills.push({ ...metadata, path: skillFile });
+      }
       return;
     }
     for (const child of fs.readdirSync(real, { withFileTypes: true })) {
@@ -162,6 +178,27 @@ if (!Number.isInteger(top) || top < 1 || !Number.isFinite(minScore)) fail("inval
 
 const catalog = discover(options.roots);
 const classification = classifyAction(options.request);
+
+// Allowlist drift check: if an --allowlist file is supplied, flag any skill
+// whose bucket differs from its expected bucket. This catches the real bug
+// class — a skill tagged with a canonically-valid-but-wrong bucket (e.g. an
+// SEO/verification skill tagged data-enrichment) that the canonical-set check
+// cannot detect. The allowlist is user-supplied; the repo ships no private map.
+if (options.allowlist) {
+  let allowlist;
+  try { allowlist = JSON.parse(fs.readFileSync(options.allowlist, "utf8")); }
+  catch (error) { fail(`cannot read allowlist: ${error.message}`); }
+  for (const skill of catalog) {
+    const expected = allowlist[skill.name];
+    if (expected && expected !== skill.bucket) {
+      process.stderr.write(
+        `skill-router: DRIFT skill "${skill.name}" bucket="${skill.bucket}" ` +
+        `expected="${expected}". Re-tag it or it will route incorrectly.\n`
+      );
+    }
+  }
+}
+
 const selected = rank(options.request, catalog, classification.action_bucket).filter((skill) => skill.score >= minScore).slice(0, top);
 const result = {
   version: 1,
