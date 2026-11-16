@@ -94,6 +94,12 @@ test("raises a human risk gate for material actions", () => {
   assert.equal(plan.status, "blocked");
 });
 
+test("routes a dream maintenance request to the dream skill", () => {
+  const plan = run("--request", "Run the dream maintenance cron", "--available", "dream");
+  assert.equal(plan.agent, "maintenance-agent");
+  assert.deepEqual(plan.skills, ["dream"]);
+});
+
 test("rejects invalid route patterns before routing", () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "skill-router-test-"));
   const broken = path.join(temporary, "broken.json");
