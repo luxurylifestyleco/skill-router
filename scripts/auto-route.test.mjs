@@ -60,3 +60,15 @@ test("uses enrich as an understand action during local discovery", () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("routes the dream maintenance cron to the dream skill", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "auto-skill-router-"));
+  try {
+    makeSkill(root, "dream", "Use when the DREAM maintenance cron is running.", "orchestration");
+    const plan = JSON.parse(execFileSync(process.execPath, [script, "--root", root, "--request", "Run the dream maintenance cron", "--top", "1"], { encoding: "utf8" }));
+    assert.equal(plan.selectedSkills[0]?.name, "dream");
+    assert.equal(plan.action_bucket, "orchestration");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
