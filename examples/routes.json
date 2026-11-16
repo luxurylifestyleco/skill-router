@@ -60,6 +60,18 @@
         "patterns": ["\\bpptx?\\b"],
         "extensions": [".pptx"]
       }
+    },
+    {
+      "id": "dream",
+      "bucket": "orchestration",
+      "agent": "maintenance-agent",
+      "skills": ["dream"],
+      "priority": 70,
+      "match": {
+        "verbs": ["learn", "operate"],
+        "any": ["dream", "maintenance cron"],
+        "patterns": ["\\bdream\\b"]
+      }
     }
   ]
 }
