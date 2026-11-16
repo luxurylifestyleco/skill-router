@@ -2,6 +2,12 @@
 
 All notable changes are documented here. Skill Router follows semantic versioning.
 
+## Unreleased
+
+### Added
+
+- Shipped `examples/skills/dream` for the maintenance cron. It classifies a change set and applies nothing without an existing approval record. No private paths.
+
 ## 1.0.1 — 2026-08-31
 
 ### Corrected
